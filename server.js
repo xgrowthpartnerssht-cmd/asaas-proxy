@@ -8,6 +8,7 @@ const ASAAS_KEY = [
 ].join('');
 
 const EDUZZ_TOKEN = 'edzpap_FOLamW4ldEeISR7-8CB8Ux7RRw-v43qFv_LACkn701CEFmNTHpqXu1ozJSWZajySHGgvAj_0fMQSLl5Pmyu';
+
 const PORT = process.env.PORT || 3000;
 
 function doGet(apiUrl, headers) {
@@ -30,6 +31,7 @@ const server = http.createServer(async (req, res) => {
   const parts = url.pathname.split('/').filter(Boolean);
   const service = parts[1];
 
+  // Health check
   if (!service) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'FXGrowth Proxy Online' }));
@@ -58,7 +60,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── EDUZZ ── usa api.eduzz.com (nova API) com Bearer token
+  // ── EDUZZ ──
+  // ✅ CORRIGIDO: api.eduzz.com → api2.eduzz.com
   if (service === 'eduzz') {
     const eduzzHeaders = {
       'authorization': 'Bearer ' + EDUZZ_TOKEN,
@@ -67,11 +70,10 @@ const server = http.createServer(async (req, res) => {
     };
 
     // Suporta dois formatos:
-    // 1) Path na URL: /api/eduzz/myeduzz/v1/sales?page=1
-    // 2) Path como QS: /api/eduzz?path=/myeduzz/v1/sales&page=1
+    // 1) Path na URL:  /api/eduzz/sale/get_list?page=1
+    // 2) Path como QS: /api/eduzz?path=/sale/get_list&page=1
     let eduzzPath = '';
     let qs = '';
-
     if (parts.length > 2) {
       eduzzPath = '/' + parts.slice(2).join('/');
       qs = url.searchParams.toString();
@@ -87,7 +89,8 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const apiUrl = 'https://api.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
+    // ✅ CORREÇÃO PRINCIPAL: era api.eduzz.com, agora api2.eduzz.com
+    const apiUrl = 'https://api2.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
     console.log('[EDUZZ] Chamando:', apiUrl);
 
     try {
