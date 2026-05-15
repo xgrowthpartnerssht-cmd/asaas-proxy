@@ -36,7 +36,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── ASAAS ── (exatamente como estava funcionando)
+  // ── ASAAS ──
   if (service === 'asaas') {
     const path = url.searchParams.get('path');
     if (!path) { res.writeHead(400); res.end(JSON.stringify({ error: 'path required' })); return; }
@@ -58,7 +58,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── EDUZZ ── (suporta path na URL E como query param)
+  // ── EDUZZ ── usa api.eduzz.com (nova API) com Bearer token
   if (service === 'eduzz') {
     const eduzzHeaders = {
       'authorization': 'Bearer ' + EDUZZ_TOKEN,
@@ -66,15 +66,16 @@ const server = http.createServer(async (req, res) => {
       'content-type': 'application/json'
     };
 
+    // Suporta dois formatos:
+    // 1) Path na URL: /api/eduzz/myeduzz/v1/sales?page=1
+    // 2) Path como QS: /api/eduzz?path=/myeduzz/v1/sales&page=1
     let eduzzPath = '';
     let qs = '';
 
     if (parts.length > 2) {
-      // Path na URL: /api/eduzz/sale/get_list?page=1
       eduzzPath = '/' + parts.slice(2).join('/');
       qs = url.searchParams.toString();
     } else {
-      // Path como query param: /api/eduzz?path=/sale/get_list&page=1
       eduzzPath = url.searchParams.get('path') || '';
       url.searchParams.delete('path');
       qs = url.searchParams.toString();
@@ -86,7 +87,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const apiUrl = 'https://api2.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
+    const apiUrl = 'https://api.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
     console.log('[EDUZZ] Chamando:', apiUrl);
 
     try {
