@@ -27,16 +27,16 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
   const url = new URL(req.url, `http://localhost:${PORT}`);
-  const parts = url.pathname.split('/').filter(Boolean); // ['api', 'eduzz', 'sale', 'get_list']
-  const service = parts[1]; // 'asaas' ou 'eduzz'
+  const parts = url.pathname.split('/').filter(Boolean);
+  const service = parts[1];
 
   if (!service) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'FXGrowth Proxy Online', services: ['asaas', 'eduzz'] }));
+    res.end(JSON.stringify({ status: 'FXGrowth Proxy Online' }));
     return;
   }
 
-  // ── ASAAS ──────────────────────────────────────────────
+  // ── ASAAS ── (exatamente como estava funcionando)
   if (service === 'asaas') {
     const path = url.searchParams.get('path');
     if (!path) { res.writeHead(400); res.end(JSON.stringify({ error: 'path required' })); return; }
@@ -44,7 +44,11 @@ const server = http.createServer(async (req, res) => {
     const qs = url.searchParams.toString();
     const apiUrl = 'https://api.asaas.com/v3' + path + (qs ? '?' + qs : '');
     try {
-      const r = await doGet(apiUrl, { 'access_token': ASAAS_KEY, 'Content-Type': 'application/json' });
+      const r = await doGet(apiUrl, {
+        'access_token': ASAAS_KEY,
+        'Content-Type': 'application/json',
+        'User-Agent': 'FXGrowth/1.0'
+      });
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(r.body);
     } catch(e) {
@@ -54,7 +58,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── EDUZZ ──────────────────────────────────────────────
+  // ── EDUZZ ── (suporta path na URL E como query param)
   if (service === 'eduzz') {
     const eduzzHeaders = {
       'authorization': 'Bearer ' + EDUZZ_TOKEN,
@@ -62,19 +66,15 @@ const server = http.createServer(async (req, res) => {
       'content-type': 'application/json'
     };
 
-    // Suporta DOIS formatos:
-    // Formato 1 (path na URL): /api/eduzz/sale/get_list?page=1
-    // Formato 2 (path como QS): /api/eduzz?path=/sale/get_list&page=1
-
     let eduzzPath = '';
     let qs = '';
 
     if (parts.length > 2) {
-      // Formato 1: path está na URL após /api/eduzz/
+      // Path na URL: /api/eduzz/sale/get_list?page=1
       eduzzPath = '/' + parts.slice(2).join('/');
       qs = url.searchParams.toString();
     } else {
-      // Formato 2: path está no query param
+      // Path como query param: /api/eduzz?path=/sale/get_list&page=1
       eduzzPath = url.searchParams.get('path') || '';
       url.searchParams.delete('path');
       qs = url.searchParams.toString();
