@@ -21,9 +21,35 @@ function doGet(apiUrl, headers) {
   });
 }
 
+// ✅ NOVO: POST para Eduzz API v2
+function doPost(apiUrl, headers, body) {
+  return new Promise((resolve, reject) => {
+    const bodyStr = typeof body === 'string' ? body : JSON.stringify(body);
+    const urlObj = new URL(apiUrl);
+    const options = {
+      hostname: urlObj.hostname,
+      path: urlObj.pathname + urlObj.search,
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(bodyStr)
+      }
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
+    });
+    req.on('error', reject);
+    req.write(bodyStr);
+    req.end();
+  });
+}
+
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
 
@@ -38,7 +64,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── ASAAS ──
+  // ── ASAAS (GET) ──
   if (service === 'asaas') {
     const path = url.searchParams.get('path');
     if (!path) { res.writeHead(400); res.end(JSON.stringify({ error: 'path required' })); return; }
@@ -60,8 +86,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── EDUZZ ──
-  // ✅ CORRIGIDO: api.eduzz.com → api2.eduzz.com
+  // ── EDUZZ (POST) ──
+  // ✅ api2.eduzz.com + método POST (exigido pela API v2)
   if (service === 'eduzz') {
     const eduzzHeaders = {
       'authorization': 'Bearer ' + EDUZZ_TOKEN,
@@ -69,18 +95,19 @@ const server = http.createServer(async (req, res) => {
       'content-type': 'application/json'
     };
 
-    // Suporta dois formatos:
-    // 1) Path na URL:  /api/eduzz/sale/get_list?page=1
-    // 2) Path como QS: /api/eduzz?path=/sale/get_list&page=1
+    // Extrai o path da Eduzz:
+    // Formato URL:  /api/eduzz/sale/get_list
+    // Formato QS:   /api/eduzz?path=/sale/get_list
     let eduzzPath = '';
-    let qs = '';
+    let queryParams = {};
+
     if (parts.length > 2) {
       eduzzPath = '/' + parts.slice(2).join('/');
-      qs = url.searchParams.toString();
+      url.searchParams.forEach((v, k) => { queryParams[k] = v; });
     } else {
       eduzzPath = url.searchParams.get('path') || '';
       url.searchParams.delete('path');
-      qs = url.searchParams.toString();
+      url.searchParams.forEach((v, k) => { queryParams[k] = v; });
     }
 
     if (!eduzzPath) {
@@ -89,13 +116,13 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // ✅ CORREÇÃO PRINCIPAL: era api.eduzz.com, agora api2.eduzz.com
-    const apiUrl = 'https://api2.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
-    console.log('[EDUZZ] Chamando:', apiUrl);
+    const apiUrl = 'https://api2.eduzz.com' + eduzzPath;
+    console.log('[EDUZZ] POST:', apiUrl, '| Params:', JSON.stringify(queryParams));
 
     try {
-      const r = await doGet(apiUrl, eduzzHeaders);
-      console.log('[EDUZZ] Status:', r.status, '| Preview:', r.body.substring(0, 200));
+      // Eduzz API v2 usa POST com body JSON
+      const r = await doPost(apiUrl, eduzzHeaders, queryParams);
+      console.log('[EDUZZ] Status:', r.status, '| Preview:', r.body.substring(0, 300));
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(r.body);
     } catch(e) {
