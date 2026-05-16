@@ -4,14 +4,12 @@ const https = require('https');
 const ASAAS_KEY = [
   '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJl',
   'NzZmNGZhZGY6OmMwNGRmYzllLTJjNzUtNDIyMC05OThmLTdiM2E2MjBiNzNiZTo6',
-  'JGFhY2hfMTliMDhhMzQtNGYzMy00ZDM4LWI5ZGMtMGY2MTAxNjg0Njgy'
+  'JGFhY2hfMTliMDhhMzQtNGYzMy00ZDM4LWI1ZGMtMGY2MTAxNjg0Njgy'
 ].join('');
 
 const EDUZZ_TOKEN = 'edzpap_FOLamW4ldEeISR7-8CB8Ux7RRw-v43qFv_LACkn701CEFmNTHpqXu1ozJSWZajySHGgvAj_0fMQSLl5Pmyu';
-
 const FB_TOKEN   = 'EAAjOpur6WqABRdZBwIVxhNGQq9ZBcCc3kKBZBJp1xBD4ZCEUQd0LyfxYfJM1uVJHEW4ZB9BTkrI2r2Unnf1hqkwfPOVEoYnEsSuXCheJotKnCaKVy9YhZASAktTQERy7ZCZCiLt04ZA9V206Ult63iAhgbn88vnzXbzT7xNua2zupzOgLk55GvUrwhlKser19';
 const FB_ACCOUNT = 'act_1964754258257133';
-
 const PORT = process.env.PORT || 3000;
 
 function doGet(apiUrl, headers) {
@@ -85,18 +83,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // ── FACEBOOK ADS ──
-  // GET /api/facebook/insights?date_preset=today  → resumo da conta
-  // GET /api/facebook/campaigns?date_preset=today → por campanha
   if (service === 'facebook') {
     const action = parts[2] || 'insights';
-    url.searchParams.delete('');
 
-    // Campos padrão para ROI
+    // ✅ Inclui action_values para purchase value e cost_per_action_type para CPL real
     const fields = [
-      'campaign_name','adset_name',
+      'campaign_name',
       'spend','impressions','reach','frequency',
       'clicks','cpc','cpm','ctr',
-      'actions','cost_per_action_type',
+      'actions','action_values','cost_per_action_type',
       'date_start','date_stop'
     ].join(',');
 
@@ -111,19 +106,20 @@ const server = http.createServer(async (req, res) => {
       timeRange = `&date_preset=${datePreset}`;
     }
 
+    // ✅ Janela de atribuição padrão: 7 dias após clique (igual ao Ads Manager)
+    const attribution = '&action_attribution_windows=["7d_click","1d_view"]';
+
     let apiUrl = '';
     if (action === 'campaigns') {
-      // Insights por campanha
-      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}&level=campaign${timeRange}&limit=50&access_token=${FB_TOKEN}`;
+      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}&level=campaign${timeRange}${attribution}&limit=50&access_token=${FB_TOKEN}`;
     } else {
-      // Resumo geral da conta
-      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}${timeRange}&limit=1&access_token=${FB_TOKEN}`;
+      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}${timeRange}${attribution}&limit=1&access_token=${FB_TOKEN}`;
     }
 
     console.log('[FACEBOOK] GET:', apiUrl.replace(FB_TOKEN, 'TOKEN_HIDDEN'));
     try {
       const r = await doGet(apiUrl, { 'User-Agent': 'FXGrowth/1.0' });
-      console.log('[FACEBOOK] Status:', r.status, '| Preview:', r.body.substring(0, 200));
+      console.log('[FACEBOOK] Status:', r.status, '| Preview:', r.body.substring(0, 300));
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(r.body);
     } catch(e) {
