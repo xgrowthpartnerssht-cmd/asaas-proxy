@@ -4,7 +4,7 @@ const https = require('https');
 const ASAAS_KEY = [
   '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJl',
   'NzZmNGZhZGY6OmMwNGRmYzllLTJjNzUtNDIyMC05OThmLTdiM2E2MjBiNzNiZTo6',
-  'JGFhY2hfMTliMDhhMzQtNGYzMy00ZDM4LWI1ZGMtMGY2MTAxNjg0Njgy'
+  'JGFhY2hfMTliMDhhMzQtNGYzMy00ZDM4LWI5ZGMtMGY2MTAxNjg0Njgy'
 ].join('');
 
 const EDUZZ_TOKEN = 'edzpap_FOLamW4ldEeISR7-8CB8Ux7RRw-v43qFv_LACkn701CEFmNTHpqXu1ozJSWZajySHGgvAj_0fMQSLl5Pmyu';
