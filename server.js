@@ -90,7 +90,7 @@ const server = http.createServer(async (req, res) => {
     const fields = [
       'campaign_name',
       'spend','impressions','reach','frequency',
-      'clicks','cpc','cpm','ctr',
+      'clicks','cpc','cpm','ctr','landing_page_views',
       'actions','action_values','cost_per_action_type',
       'date_start','date_stop'
     ].join(',');
