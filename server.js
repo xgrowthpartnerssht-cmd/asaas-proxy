@@ -7,8 +7,10 @@ const ASAAS_KEY = [
   'JGFhY2hfMTliMDhhMzQtNGYzMy00ZDM4LWI5ZGMtMGY2MTAxNjg0Njgy'
 ].join('');
 
-// Token da nova API OAuth da Eduzz (api.eduzz.com)
 const EDUZZ_TOKEN = 'edzpap_FOLamW4ldEeISR7-8CB8Ux7RRw-v43qFv_LACkn701CEFmNTHpqXu1ozJSWZajySHGgvAj_0fMQSLl5Pmyu';
+
+const FB_TOKEN   = 'EAAjOpur6WqABRdZBwIVxhNGQq9ZBcCc3kKBZBJp1xBD4ZCEUQd0LyfxYfJM1uVJHEW4ZB9BTkrI2r2Unnf1hqkwfPOVEoYnEsSuXCheJotKnCaKVy9YhZASAktTQERy7ZCZCiLt04ZA9V206Ult63iAhgbn88vnzXbzT7xNua2zupzOgLk55GvUrwhlKser19';
+const FB_ACCOUNT = 'act_1964754258257133';
 
 const PORT = process.env.PORT || 3000;
 
@@ -32,14 +34,13 @@ const server = http.createServer(async (req, res) => {
   const parts = url.pathname.split('/').filter(Boolean);
   const service = parts[1];
 
-  // Health check
   if (!service) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'FXGrowth Proxy Online' }));
     return;
   }
 
-  // ── ASAAS (GET) ──
+  // ── ASAAS ──
   if (service === 'asaas') {
     const path = url.searchParams.get('path');
     if (!path) { res.writeHead(400); res.end(JSON.stringify({ error: 'path required' })); return; }
@@ -47,11 +48,7 @@ const server = http.createServer(async (req, res) => {
     const qs = url.searchParams.toString();
     const apiUrl = 'https://api.asaas.com/v3' + path + (qs ? '?' + qs : '');
     try {
-      const r = await doGet(apiUrl, {
-        'access_token': ASAAS_KEY,
-        'Content-Type': 'application/json',
-        'User-Agent': 'FXGrowth/1.0'
-      });
+      const r = await doGet(apiUrl, { 'access_token': ASAAS_KEY, 'Content-Type': 'application/json', 'User-Agent': 'FXGrowth/1.0' });
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(r.body);
     } catch(e) {
@@ -61,23 +58,9 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // ── EDUZZ (GET com Bearer token) ──
-  // ✅ API correta: api.eduzz.com (nova API OAuth)
-  // ✅ Método: GET com Authorization: bearer <token>
-  // ✅ Endpoints: /myeduzz/v1/invoices, /accounts/v1/me, etc.
+  // ── EDUZZ ──
   if (service === 'eduzz') {
-    const eduzzHeaders = {
-      'authorization': 'bearer ' + EDUZZ_TOKEN,
-      'accept': 'application/json',
-      'content-type': 'application/json'
-    };
-
-    // Extrai path e query string
-    // Formato URL:  GET /api/eduzz/myeduzz/v1/invoices?page=1
-    // Formato QS:   GET /api/eduzz?path=/myeduzz/v1/invoices&page=1
-    let eduzzPath = '';
-    let qs = '';
-
+    let eduzzPath = '', qs = '';
     if (parts.length > 2) {
       eduzzPath = '/' + parts.slice(2).join('/');
       qs = url.searchParams.toString();
@@ -86,20 +69,61 @@ const server = http.createServer(async (req, res) => {
       url.searchParams.delete('path');
       qs = url.searchParams.toString();
     }
-
-    if (!eduzzPath) {
-      res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
-      res.end(JSON.stringify({ error: 'Eduzz path required' }));
-      return;
-    }
-
-    // ✅ CORREÇÃO FINAL: api.eduzz.com (não api2!) + GET + bearer token
+    if (!eduzzPath) { res.writeHead(400); res.end(JSON.stringify({ error: 'Eduzz path required' })); return; }
     const apiUrl = 'https://api.eduzz.com' + eduzzPath + (qs ? '?' + qs : '');
     console.log('[EDUZZ] GET:', apiUrl);
-
     try {
-      const r = await doGet(apiUrl, eduzzHeaders);
-      console.log('[EDUZZ] Status:', r.status, '| Preview:', r.body.substring(0, 300));
+      const r = await doGet(apiUrl, { 'authorization': 'bearer ' + EDUZZ_TOKEN, 'accept': 'application/json' });
+      console.log('[EDUZZ] Status:', r.status, '| Preview:', r.body.substring(0, 200));
+      res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(r.body);
+    } catch(e) {
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // ── FACEBOOK ADS ──
+  // GET /api/facebook/insights?date_preset=today  → resumo da conta
+  // GET /api/facebook/campaigns?date_preset=today → por campanha
+  if (service === 'facebook') {
+    const action = parts[2] || 'insights';
+    url.searchParams.delete('');
+
+    // Campos padrão para ROI
+    const fields = [
+      'campaign_name','adset_name',
+      'spend','impressions','reach','frequency',
+      'clicks','cpc','cpm','ctr',
+      'actions','cost_per_action_type',
+      'date_start','date_stop'
+    ].join(',');
+
+    const datePreset = url.searchParams.get('date_preset') || 'this_month';
+    const since      = url.searchParams.get('since') || '';
+    const until      = url.searchParams.get('until') || '';
+
+    let timeRange = '';
+    if (since && until) {
+      timeRange = `&time_range={"since":"${since}","until":"${until}"}`;
+    } else {
+      timeRange = `&date_preset=${datePreset}`;
+    }
+
+    let apiUrl = '';
+    if (action === 'campaigns') {
+      // Insights por campanha
+      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}&level=campaign${timeRange}&limit=50&access_token=${FB_TOKEN}`;
+    } else {
+      // Resumo geral da conta
+      apiUrl = `https://graph.facebook.com/v21.0/${FB_ACCOUNT}/insights?fields=${fields}${timeRange}&limit=1&access_token=${FB_TOKEN}`;
+    }
+
+    console.log('[FACEBOOK] GET:', apiUrl.replace(FB_TOKEN, 'TOKEN_HIDDEN'));
+    try {
+      const r = await doGet(apiUrl, { 'User-Agent': 'FXGrowth/1.0' });
+      console.log('[FACEBOOK] Status:', r.status, '| Preview:', r.body.substring(0, 200));
       res.writeHead(r.status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
       res.end(r.body);
     } catch(e) {
